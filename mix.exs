@@ -11,7 +11,10 @@ defmodule Emcd.Mixfile do
   end
 
   def application do
-    [applications: [:logger]]
+    [
+      applications: [:logger],
+      mod: {Emcd, []}
+    ]
   end
 
   defp deps do

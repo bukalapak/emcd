@@ -4,13 +4,15 @@ Emcd is Memcached Client written using Elixir. Emcd uses text protocol instead o
 
 ## Installation
 
-First, add Emcd to your `mix.exs` dependencies:
+Add Emcd to your `mix.exs` dependencies:
 
 ```elixir
 def deps do
   [{:emcd, "~> 0.1.0", github: "bukalapak/emcd"}]
 end
 ```
+
+Add :emcd to your :applications list if you wish the application to start automatically.
 
 ## Configuration
 
