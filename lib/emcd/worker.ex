@@ -36,6 +36,18 @@ defmodule Emcd.Worker do
     {:reply, {:ok, format_result(result)}, {sock, options}}
   end
 
+  # version\r\n
+  def handle_call({:version}, _from, {sock, options}) do
+    timeout = options[:timeout]
+
+    packet = "version\r\n" |> String.to_charlist()
+
+    :ok = :gen_tcp.send(sock, packet)
+    {:ok, result} = :gen_tcp.recv(sock, 0, timeout)
+
+    {:reply, {:ok, format_result(result)}, {sock, options}}
+  end
+
   defp format_key(key, namespace) do
     if namespace == nil or namespace == "" do
       key

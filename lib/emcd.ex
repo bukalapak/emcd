@@ -44,4 +44,8 @@ defmodule Emcd do
   def set(key, value) do
     GenServer.call(Emcd.Worker, {:set, key, value})
   end
+
+  def version() do
+    GenServer.call(Emcd.Worker, {:version})
+  end
 end
