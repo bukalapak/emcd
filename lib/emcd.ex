@@ -4,12 +4,12 @@ defmodule Emcd do
 
   ## Example
 
-    {:ok, sock} = Emcd.connect()
-    {:ok, "STORED"} = Emcd.set(sock, "key", "value")
-    {:ok, "value"} = Emcd.get(sock, "key")
+    {:ok, ["STORED"]} = Emcd.set("key", "value")
+    {:ok, ["VALUE key 0 1", "value", "END"]} = Emcd.get("key")
 
   """
   use Application
+  require Logger
 
   @default_host "127.0.0.1"
   @default_port 3000
@@ -47,5 +47,11 @@ defmodule Emcd do
 
   def version() do
     GenServer.call(Emcd.Worker, {:version})
+  end
+
+  def retry(interval) do
+    Logger.info "Retrying to connect to server in #{interval / 1_000} seconds"
+    :timer.sleep(interval)
+    GenServer.cast(Emcd.Worker, {:connect, interval})
   end
 end

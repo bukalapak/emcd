@@ -29,7 +29,7 @@ config :emcd,
 ## Usage
 
 ```elixir
-iex> Emcd.start([], [])
+iex> Emcd.start([], []) # if :emcd not started automatically.
 {:ok, #Port<0.3561>}
 iex> Emcd.set("key", "value")
 {:ok, "STORED"}

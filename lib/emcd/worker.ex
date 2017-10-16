@@ -1,53 +1,112 @@
 defmodule Emcd.Worker do
   use GenServer
+  require Logger
 
   def start_link(options) do
-    {:ok, sock} = :gen_tcp.connect(
-      options[:host], options[:port], options[:connection_options], options[:timeout]
-    )
+    {socket, status} =
+    try do
+      {:ok, socket} = :gen_tcp.connect(options[:host], options[:port], options[:connection_options], options[:timeout])
+      {socket, true}
+    rescue
+      error ->
+        :erlang.spawn(Emcd, :retry, [1_000])
+        {nil, false}
+    end
 
-    GenServer.start_link(__MODULE__, {sock, options}, [name: __MODULE__])
+    GenServer.start_link(__MODULE__, {socket, status, options}, [name: __MODULE__])
   end
 
   # get <key>*\r\n
-  def handle_call({:get, key}, _from, {sock, options}) do
-    timeout = options[:timeout]
-    key = format_key(key, options[:namespace])
+  def handle_call({:get, key}, _from, {socket, status, options}) do
+    if (status == false) do
+      {:reply, {:errorr, :not_connected}, {socket, status, options}}
+    else
+      key = format_key(key, options[:namespace])
 
-    packet = "get #{key}\r\n" |> String.to_charlist()
+      packet = "get #{key}\r\n" |> String.to_charlist()
 
-    :ok = :gen_tcp.send(sock, packet)
-    {:ok, return} = :gen_tcp.recv(sock, 0, timeout)
-
-    {:reply, {:ok, get_value(return)}, {sock, options}}
+      case send_and_receive(socket, packet, options) do
+        {:ok, received_packet} ->
+          {:reply, {:ok, format_result(received_packet)}, {socket, status, options}}
+        {:error, reason} ->
+          status = check_error_reason(status, reason)
+          {:reply, {:error, reason}, {socket, status, options}}
+      end
+    end
   end
 
   # set <key> <flags> <exptime> <bytes> [noreply]\r\n<value>\r\n
-  def handle_call({:set, key, value}, _from, {sock, options}) do
-    timeout = options[:timeout]
-    key = format_key(key, options[:namespace])
-    bytes = byte_size(value)
+  def handle_call({:set, key, value}, _from, {socket, status, options}) do
+    if (status == false) do
+      {:reply, {:errorr, :not_connected}, {socket, status, options}}
+    else
+      key = format_key(key, options[:namespace])
+      bytes = byte_size(value)
 
-    packet = "set #{key} 0 0 #{bytes} \r\n#{value}\r\n" |> String.to_charlist()
+      packet = "set #{key} 0 0 #{bytes} \r\n#{value}\r\n" |> String.to_charlist()
 
-    :ok = :gen_tcp.send(sock, packet)
-    {:ok, result} = :gen_tcp.recv(sock, 0, timeout)
-
-    {:reply, {:ok, format_result(result)}, {sock, options}}
+      case send_and_receive(socket, packet, options) do
+        {:ok, received_packet} ->
+          {:reply, {:ok, format_result(received_packet)}, {socket, status, options}}
+        {:error, reason} ->
+          status = check_error_reason(status, reason)
+          {:reply, {:error, reason}, {socket, status, options}}
+      end
+    end
   end
 
   # version\r\n
-  def handle_call({:version}, _from, {sock, options}) do
-    timeout = options[:timeout]
+  def handle_call({:version}, _from, {socket, status, options}) do
+    if (status == false) do
+      {:reply, {:errorr, :not_connected}, {socket, status, options}}
+    else
+      packet = "version\r\n" |> String.to_charlist()
 
-    packet = "version\r\n" |> String.to_charlist()
-
-    :ok = :gen_tcp.send(sock, packet)
-    {:ok, result} = :gen_tcp.recv(sock, 0, timeout)
-
-    {:reply, {:ok, format_result(result)}, {sock, options}}
+      case send_and_receive(socket, packet, options) do
+        {:ok, received_packet} ->
+          {:reply, {:ok, format_result(received_packet)}, {socket, status, options}}
+        {:error, reason} ->
+          status = check_error_reason(status, reason)
+          {:reply, {:error, reason}, {socket, status, options}}
+      end
+    end
   end
 
+  def handle_cast({:connect, interval}, {socket, status, options}) do
+    {socket, status} =
+    try do
+      {:ok, socket} = :gen_tcp.connect(options[:host], options[:port], options[:connection_options], options[:timeout])
+      Logger.info "Connected to server"
+      {socket, true}
+    rescue
+      error ->
+        :erlang.spawn(Emcd, :retry, [interval * 2])
+        {nil, false}
+    end
+
+    {:noreply, {socket, status, options}}
+  end
+
+
+  defp send_and_receive(socket, packet, options) do
+    timeout = options[:timeout]
+
+    :ok = :gen_tcp.send(socket, packet)
+    :gen_tcp.recv(socket, 0, timeout)
+  end
+
+  defp check_error_reason(status, reason) do
+    if (reason == :closed) do
+      :erlang.spawn(Emcd, :retry, [1_000])
+      false
+    else
+      status
+    end
+  end
+
+  @doc """
+  Append namespace to key if given
+  """
   defp format_key(key, namespace) do
     if namespace == nil or namespace == "" do
       key
@@ -56,16 +115,7 @@ defmodule Emcd.Worker do
     end
   end
 
-  defp get_value(raw) do
-    string = to_string(raw)
-
-    [_first, value, _last] = String.split(string, "\r\n", trim: true)
-    value
-  end
-
   defp format_result(raw) do
-    string = to_string(raw)
-
-    String.trim(string)
+    to_string(raw) |> String.split("\r\n", trim: true)
   end
 end
