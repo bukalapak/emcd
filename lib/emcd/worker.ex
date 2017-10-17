@@ -8,7 +8,7 @@ defmodule Emcd.Worker do
       {:ok, socket} = :gen_tcp.connect(options[:host], options[:port], options[:connection_options], options[:timeout])
       {socket, true}
     rescue
-      error ->
+      _error ->
         :erlang.spawn(Emcd, :retry, [1_000])
         {nil, false}
     end
@@ -72,14 +72,14 @@ defmodule Emcd.Worker do
     end
   end
 
-  def handle_cast({:connect, interval}, {socket, status, options}) do
+  def handle_cast({:connect, interval}, {_socket, _status, options}) do
     {socket, status} =
     try do
       {:ok, socket} = :gen_tcp.connect(options[:host], options[:port], options[:connection_options], options[:timeout])
       Logger.info "Connected to server"
       {socket, true}
     rescue
-      error ->
+      _error ->
         :erlang.spawn(Emcd, :retry, [interval * 2])
         {nil, false}
     end
@@ -108,9 +108,6 @@ defmodule Emcd.Worker do
     end
   end
 
-  @doc """
-  Append namespace to key if given
-  """
   defp format_key(key, namespace) do
     if namespace == nil or namespace == "" do
       key
