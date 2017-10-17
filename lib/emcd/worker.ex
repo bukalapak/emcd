@@ -91,8 +91,12 @@ defmodule Emcd.Worker do
   defp send_and_receive(socket, packet, options) do
     timeout = options[:timeout]
 
-    :ok = :gen_tcp.send(socket, packet)
-    :gen_tcp.recv(socket, 0, timeout)
+    case :gen_tcp.send(socket, packet) do
+      :ok ->
+        :gen_tcp.recv(socket, 0, timeout)
+      result ->
+        result
+    end
   end
 
   defp check_error_reason(status, reason) do
