@@ -43,7 +43,7 @@ defmodule Emcd.Worker do
       key = format_key(key, options[:namespace])
       bytes = byte_size(value)
 
-      packet = "set #{key} 0 0 #{bytes} \r\n#{value}\r\n" |> String.to_charlist()
+      packet = "set #{key} 0 0 #{bytes} \r\n#{value}\r\n" |> :binary.bin_to_list()
 
       case send_and_receive(socket, packet, options) do
         {:ok, received_packet} ->
