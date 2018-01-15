@@ -80,7 +80,8 @@ defmodule Emcd.Worker do
       {socket, true}
     rescue
       _error ->
-        :erlang.spawn(Emcd, :retry, [interval * 2])
+        interval = if interval < 8_000, do: interval * 2, else: 8_000
+        :erlang.spawn(Emcd, :retry, [interval])
         {nil, false}
     end
 
